@@ -1,3 +1,4 @@
+from __future__ import print_function
 # MicrobeCensus - estimation of average genome size from shotgun sequence data
 # Copyright (C) 2013-2015 Stephen Nayfach
 # Freely distributed under the GNU General Public License (GPLv3)
@@ -85,6 +86,7 @@ def read_dic(file, header, dtype, empty=False):
             else:
                 key, value = line.rstrip().split()
             dic[key] = float(value) if dtype == 'float' else int(value) if dtype == 'int' else value
+        f_in.close()
         return dic
 
 def read_list(file, header, dtype):
@@ -107,12 +109,11 @@ def get_relative_paths(args):
     """ Fetch relative paths to data files """
     paths = {}
     pkg_dir = os.path.dirname(os.path.abspath(__file__))
-    if 'rapsearch' in args and args['rapsearch']:
-        paths['rapsearch'] = args['rapsearch']
+    if 'diamond' in args and args['diamond']:
+        paths['diamond'] = args['diamond']
     else:
-        rapsearch = '_'.join(['rapsearch', platform.system(), '2.15'])
-        paths['rapsearch'] = os.path.join(pkg_dir, 'bin/%s' % rapsearch)
-    paths['db'] = os.path.join(pkg_dir, 'data/rapdb_2.15')
+        paths['diamond'] = '/usr/bin/diamond'
+    paths['db'] = os.path.join(pkg_dir, 'data/seqs.dmnd')
     paths['fams'] = os.path.join(pkg_dir, 'data/gene_fam.map')
     paths['genelen'] = os.path.join(pkg_dir, 'data/gene_len.map')
     paths['params'] = os.path.join(pkg_dir, 'data/pars.map')
@@ -132,17 +133,15 @@ def check_paths(paths):
         else:
             sys.exit("Path to file/dir not found: %s" % my_path)
 
-def check_rapsearch(rapsearch):
+def check_diamond(diamond_path):
     """ Check that rapsearch2 binary is version 2.15 and is executable """
-    process = subprocess.Popen(rapsearch + ' -h', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process = subprocess.Popen(diamond_path + ' version', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     retcode = process.wait()
     output, error = process.communicate()
-    if os.path.isdir(rapsearch):
-        sys.exit("Problem executing rapsearch2: '%s'" % rapsearch)
-    elif len(error.decode().split('\n')) < 2:
-        sys.exit("Problem executing rapsearch2: '%s'" % rapsearch)
-    elif error.decode().split('\n')[1] != 'rapsearch v2.15: Fast protein similarity search tool for short reads':
-        sys.exit("Incorrect version of rapsearch2 detected:'%s\nMicrobeCensus requires rapsearch v2.15" % rapsearch)
+    if not output.decode().startswith('diamond version'):
+        print (output)
+        print (error)
+        sys.exit("Problem executing diamond")
 
 def auto_detect_read_length(seqfile, file_type):
     """ Find median read length from first 10K reads in seqfile """
@@ -376,27 +375,39 @@ def process_seqfile(args, paths):
         print ("\t%s duplicate reads found and skipped" % dups)
         print ("\t%s reads sampled from seqfile" % read_id)
 
+
 def search_seqs(args, paths):
     """ Search high quality reads against marker genes using RAPsearch2 """
     if args['verbose']:
         print ("Searching reads against marker proteins...")
-    with open('/dev/null') as devnull:
-        arguments = {'rapsearch': paths['rapsearch'], 'reads':paths['tempfile'], 'db':paths['db'], 'out':paths['tempfile'], 'threads':args['threads']}
-        command = "%(rapsearch)s -q %(reads)s -d %(db)s -o %(out)s -z %(threads)s -e 1 -t n -p f -b 0" % arguments
-        process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        retcode = process.wait()
-        output, error = process.communicate()
-        if retcode == 0:
-            hits = []
-            with open(paths['tempfile']+'.m8') as f_in:
-                for line in f_in:
-                    if line[0] != '#': hits.append(line.split()[0])
-            distinct_hits = len(set(hits))
-            if args['verbose']:
-                print ("\t%s reads hit marker proteins" % str(distinct_hits))
-        else:
-            clean_up(paths)
-            sys.exit("\nDatabase search has exited with the following error:\n%s" % error)
+    diamond_args = [paths['diamond'],
+                    'blastx',
+                    '-p',
+                    str(args['threads']),
+                    '--db',
+                    paths['db'],
+                    '--query',
+                    paths['tempfile'],
+                    '--out',
+                    paths['tempfile'] + '.m8',
+                    '--evalue',
+                    '1.0',
+                    '-k','100','--outfmt','6','qseqid','sseqid','pident','length','mismatch','slen','qstart','qend','sstart','send','evalue','bitscore'
+                    ]
+    p = subprocess.Popen(diamond_args, stdout=subprocess.PIPE, stderr = subprocess.PIPE, bufsize=1, universal_newlines=True)
+    returncode = p.wait()
+    output, error = p.communicate()
+    if returncode == 0:
+        hits = []
+        for line in open(paths['tempfile']+'.m8'):
+            if line[0] != '#': hits.append(line.split()[0])
+        distinct_hits = len(set(hits))
+        if args['verbose']:
+            print ("\t%s reads hit marker proteins" % str(distinct_hits))
+    else:
+        print('DIAMOND error')
+        clean_up(paths)
+        raise subprocess.CalledProcessError(p.returncode, diamond_args)
 
 def parse_rapsearch(m8):
     """ Yield formatted record from RAPsearch2 m8 file """
@@ -405,7 +416,11 @@ def parse_rapsearch(m8):
     with open(m8) as f_in:
         for line in f_in:
             if line[0] == '#': continue
-            else: yield dict([(fields[index], formats[index](value)) for index, value in enumerate(line.rstrip().split())])
+            x = line.rstrip().split()
+            x[5] = 0.0 # dirty hack for compatibility with Rapsearch, because DIAMOND don't report gaps
+            z = dict( [ (fields[index], formats[index](value)) for index, value in enumerate(x) ] )
+            yield z
+            #else: yield dict([(fields[index], formats[index](value)) for index, value in enumerate(line.rstrip().split())])
 
 def alignment_coverage(aln_record):
     """ Find the aln cov between query and target
@@ -613,7 +628,7 @@ def run_pipeline(args):
         
         check_arguments(args)
         
-        check_rapsearch(paths['rapsearch'])
+        check_diamond(paths['diamond'])
         
         if args['verbose']: print_parameters(args)
 
@@ -634,6 +649,7 @@ def run_pipeline(args):
 
         # Estimate average genome size
         est_ags = estimate_average_genome_size(args, paths, agg_hits)
+        print (est_ags)
         return est_ags, args
 
     except Exception as error:

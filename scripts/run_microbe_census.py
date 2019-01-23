@@ -15,8 +15,8 @@ if __name__ == '__main__':
 						help="print program\'s progress to stdout (default = False)")
 	parser.add_argument('-V', '--version', action='version',
 						version='MicrobeCensus (version %s)' % __version__)
-	parser.add_argument('-r', dest='rapsearch', default=None,
-						help="path to external RAPsearch2 v2.15 binary; useful if precompiled RAPsearch2 v2.15 binary included with MicrobeCensus does not work on your system")
+	parser.add_argument('-r', dest='diamond', default=None,
+						help="path to external DIAMOND binary")
 
 	parser.add_argument('seqfiles', metavar='SEQFILES', type=str,
 						help="""
