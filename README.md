@@ -7,50 +7,35 @@ Because these genes occur once per genome, the average genome size of a microbia
 
 Once AGS is obtained, it becomes possible to obtain the total coverage of microbial genomes present in a sample (genome equivalents = total bp sequenced/AGS in bp), which can be useful for normalizing gene abundances.
 
+This is a fork of original MicrobeCensus with Rapsearch aligner replaced by DIAMOND. In addition, it includes new model trained on 2000 complete genomes for 140bp and 150bp reads.
+
 ### Requirements
 * Python dependencies (installed via setup.py): Numpy, BioPython
+* DIAMOND aligner: install from [https://github.com/bbuchfink/diamond]
 * Supported platforms: Mac OSX, Unix/Linux; Windows not currently supported
 * Python version 2 or 3
 
 ### Installation
 Clone the repo:  
-`git clone https://github.com/snayfach/MicrobeCensus`  
+`git clone https://github.com/aekazakov/MicrobeCensus.git`
 
-Or, download the latest release from: https://github.com/snayfach/MicrobeCensus/releases  
- 
+
 Unpack the project as necessary and navigate to the installation directory:  
-`cd /path/to/MicrobeCensus`  
+`cd /path/to/MicrobeCensus/microbe_census/data`
+
+
+Generate DIAMOND database:  
+`diamond makedb --in seqs.fa --db seqs`
+
+
+Navigate to the installation directory:  
+`cd ../../`  
+
 
 Run setup.py. This will install any dependencies:  
 `python setup.py install` or  
 `sudo python setup.py install` to install as a superuser
 
-Alternatively, MicrobeCensus can be installed using pip (may not be latest version):  
-`pip install MicrobeCensus` or   
-`sudo pip install MicrobeCensus` to install as a superuser, or  
-`pip install --user MicrobeCensus` to install in your home directory  
-
-You can also install using conda (may not be latest version):    
-`conda install -c bioconda microbecensus`  
-
-### Using MicrobeCensus without installing
-Although this is not recommended, users may wish to run MicrobeCensus without running setup.py.  
-
-Both BioPython and Numpy will both need to be already installed.
-You should be able to enter the following command in the python interpreter without getting an error:  
-`>>> import Bio.SeqIO`  
-`>>> import numpy`
-
-Next, add the MicrobeCensus module to your PYTHONPATH environmental variable:  
-`export PYTHONPATH=$PYTHONPATH:/path/to/MicrobeCensus` or  
-`echo -e "\nexport PYTHONPATH=\$PYTHONPATH:/path/to/MicrobeCensus" >> ~/.bash_profile` to avoid entering the command in the future
-
-Finally, add the scripts directory to your PATH environmental variable:  
-`export PATH=$PATH:/path/to/MicrobeCensus/scripts` or  
-`echo -e "\nexport PATH=\$PATH:/path/to/MicrobeCensus/scripts" >> ~/.bash_profile` to avoid entering the command in the future
-
-Now, you should be able to enter the command into your terminal without getting an error:  
-`run_microbe_census.py -h`
 
 ### Testing the software
 After installing MicrobeCensus, we recommend testing the software:  
@@ -100,9 +85,9 @@ Misc options:
 * **-h, --help:**            show this help message and exit 
 * **-v:**                    print program's progress to stdout (default = False) 
 * **-V, --version:**         show program's version number and exit 
-* **-r RAPSEARCH**         
-path to external RAPsearch2 v2.15 binary.  
-useful if precompiled RAPsearch2 v2.15 binary included with MicrobeCensus does not work on your system
+* **-r DIAMOND**         
+path to external DIAMOND binary.  
+This program was tested with DIAMOND version 0.8.38.
 
 #### Module usage
 
