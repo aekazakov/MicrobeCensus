@@ -392,7 +392,7 @@ def search_seqs(args, paths):
                     paths['tempfile'] + '.m8',
                     '--evalue',
                     '1.0',
-                    '-k','100','--outfmt','6','qseqid','sseqid','pident','length','mismatch','slen','qstart','qend','sstart','send','evalue','bitscore'
+                    '-k','100','--outfmt','6','qseqid','sseqid','pident','length','mismatch','gapopen','qstart','qend','sstart','send','evalue','score'
                     ]
     p = subprocess.Popen(diamond_args, stdout=subprocess.PIPE, stderr = subprocess.PIPE, bufsize=1, universal_newlines=True)
     returncode = p.wait()
@@ -416,11 +416,7 @@ def parse_rapsearch(m8):
     with open(m8) as f_in:
         for line in f_in:
             if line[0] == '#': continue
-            x = line.rstrip().split()
-            x[5] = 0.0 # dirty hack for compatibility with Rapsearch, because DIAMOND don't report gaps
-            z = dict( [ (fields[index], formats[index](value)) for index, value in enumerate(x) ] )
-            yield z
-            #else: yield dict([(fields[index], formats[index](value)) for index, value in enumerate(line.rstrip().split())])
+            else: yield dict([(fields[index], formats[index](value)) for index, value in enumerate(line.rstrip().split())])
 
 def alignment_coverage(aln_record):
     """ Find the aln cov between query and target

@@ -76,7 +76,7 @@ for read_length in os.listdir(reads_dir):
                             out_name,
                             '--evalue',
                             '1.0',
-                            '-k','100','--outfmt','6','qseqid','sseqid','pident','length','mismatch','slen','qstart','qend','sstart','send','evalue','bitscore'
+                            '-k','100','--outfmt','6','qseqid','sseqid','pident','length','mismatch','gapopen','qstart','qend','sstart','send','evalue','bitscore'
                             ]
             print (diamond_args)
             with Popen(diamond_args, stdout=PIPE, stderr = PIPE, bufsize=1, universal_newlines=True) as p:

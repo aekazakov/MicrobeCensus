@@ -214,10 +214,7 @@ def parse_rapsearch(p_in):
 	f_in = open(p_in)
 	for line in f_in:
 		if line[0] == '#': continue
-		x = line.rstrip().split()
-		x[5] = 0.0 # dirty hack for compatibility with DIAMOND, because DIAMOND doesn't report gaps
-		z = dict( [ (fields[index], formats[index](value)) for index, value in enumerate(x) ] )
-		yield z
+		else: yield dict([(fields[index], formats[index](value)) for index, value in enumerate(line.rstrip().split())])
 
 def compute_seq_len(p_in):
 	""" Return total sequence length of input fasta file """
