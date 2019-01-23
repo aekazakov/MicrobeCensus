@@ -14,6 +14,7 @@ main_dir <- path.expand(dirname(sub("--file=","",args[grep("--file",args)])))
 # input data
 p_in <- paste(main_dir, '/output/training_preds.map', sep='')
 df   <- read.csv(p_in, sep='\t', header=T, stringsAsFactors=F)
+df <- df[order(df[,1],df[,3],df[,2]),]
 
 # output
 p_out <- paste(main_dir, '/output/weights.map', sep='')

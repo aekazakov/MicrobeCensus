@@ -4,11 +4,11 @@
 
 """
 Usage:
-	python optimize_parameters.py
+    python optimize_parameters.py
 
 Description: 
-	find the "optimal", read-length specific mapping parameters for each marker gene
-	optimal parameters are those which result in the most accurate estimates of AGS
+    find the "optimal", read-length specific mapping parameters for each marker gene
+    optimal parameters are those which result in the most accurate estimates of AGS
 
 """
 
@@ -41,16 +41,16 @@ class_rates = store_rates(hits_dir, library2size)
 # Build argument list
 args_list = []
 for read_length in class_rates:
-	for fam in class_rates[read_length]:
-		for min_score, max_pid, aln_cov in class_rates[read_length][fam]:
-			for rate_type in ['rate_hits', 'rate_aln', 'rate_cov']:
-				arguments = {}
-				arguments['pars'] = (read_length, fam, min_score, max_pid, aln_cov, rate_type)
-				arguments['xfolds'] = xfolds
-				arguments['genome_names'] = class_rates[read_length][fam][(min_score, max_pid, aln_cov)]['genome_names']
-				arguments['rates'] = class_rates[read_length][fam][(min_score, max_pid, aln_cov)][rate_type]
-				arguments['genome2size'] = genome2size
-				args_list.append(arguments)
+    for fam in class_rates[read_length]:
+        for min_score, max_pid, aln_cov in class_rates[read_length][fam]:
+            for rate_type in ['rate_hits', 'rate_aln', 'rate_cov']:
+                arguments = {}
+                arguments['pars'] = (read_length, fam, min_score, max_pid, aln_cov, rate_type)
+                arguments['xfolds'] = xfolds
+                arguments['genome_names'] = class_rates[read_length][fam][(min_score, max_pid, aln_cov)]['genome_names']
+                arguments['rates'] = class_rates[read_length][fam][(min_score, max_pid, aln_cov)][rate_type]
+                arguments['genome2size'] = genome2size
+                args_list.append(arguments)
 
 # Compute x-validation error for each set of parameters
 # and find optimal parameters
@@ -60,47 +60,55 @@ xval_error = parallel_return_function(xvalidation, args_list, threads)
 
 print "Finding optimal parameters..."
 opt_pars = find_opt_pars(xval_error)
-#	write results
+#    write results
 f_out = open(pars_path, 'w')
 header = ['gene_fam', 'read_length', 'aln_cov', 'max_pid', 'min_score', 'aln_stat']
 f_out.write('\t'.join(header)+'\n')
 for read_length, fam in sorted(opt_pars.keys()):
-	min_score, max_pid, aln_cov, rate_type = opt_pars[(read_length, fam)]['pars']
-	aln_stat = 'hits' if rate_type == 'rate_hits' else 'aln' if rate_type == 'rate_aln' else 'cov'
-	record = [ str(x) for x in [fam, read_length, aln_cov, max_pid, min_score, aln_stat] ]
-	f_out.write('\t'.join(record)+'\n')
+    min_score, max_pid, aln_cov, rate_type = opt_pars[(read_length, fam)]['pars']
+    aln_stat = 'hits' if rate_type == 'rate_hits' else 'aln' if rate_type == 'rate_aln' else 'cov'
+    record = [ str(x) for x in [fam, read_length, aln_cov, max_pid, min_score, aln_stat] ]
+    f_out.write('\t'.join(record)+'\n')
 
 print "Finding proportionality constants..."
 prop_consts = {}
 for read_length, fam in sorted(opt_pars.keys()):
-	min_score, max_pid, aln_cov, rate_type = opt_pars[(read_length, fam)]['pars']
-	genome_names = class_rates[read_length][fam][(min_score, max_pid, aln_cov)]['genome_names']
-	rates = class_rates[read_length][fam][min_score, max_pid, aln_cov][rate_type]
-	prop_const = estimate_proportionality_constant(genome_names, rates, genome2size)
-	prop_consts[read_length, fam] = prop_const
-#	write results
+    min_score, max_pid, aln_cov, rate_type = opt_pars[(read_length, fam)]['pars']
+    genome_names = class_rates[read_length][fam][(min_score, max_pid, aln_cov)]['genome_names']
+    rates = class_rates[read_length][fam][min_score, max_pid, aln_cov][rate_type]
+    prop_const = estimate_proportionality_constant(genome_names, rates, genome2size)
+    prop_consts[read_length, fam] = prop_const
+#    write results
 f_out = open(coeffs_path, 'w')
 for read_length, fam in sorted(prop_consts.keys()):
-	prop_const = prop_consts[(read_length, fam)]
-	record = [read_length + '_' + fam, str(prop_const)]
-	f_out.write('\t'.join(record)+'\n')
+    prop_const = prop_consts[(read_length, fam)]
+    record = [read_length + '_' + fam, str(prop_const)]
+    f_out.write('\t'.join(record)+'\n')
 
 print "Getting per-gene AGS predictions..."
 training_ests = {}
 for read_length, fam in sorted(opt_pars.keys()):
-	min_score, max_pid, aln_cov, rate_type = opt_pars[(read_length, fam)]['pars']
-	prop_const = prop_consts[(read_length, fam)]
-	genome_names = class_rates[read_length][fam][(min_score, max_pid, aln_cov)]['genome_names']
-	rates = class_rates[read_length][fam][min_score, max_pid, aln_cov][rate_type]
-	for genome_name, rate in zip(genome_names, rates):
-		true_ags = genome2size[genome_name]
-		est_ags = prop_const/rate if rate > 0 else 'NA'
-		training_ests[(read_length, fam, genome_name)] = true_ags, est_ags
-#	write results
+    min_score, max_pid, aln_cov, rate_type = opt_pars[(read_length, fam)]['pars']
+    prop_const = prop_consts[(read_length, fam)]
+    genome_names = class_rates[read_length][fam][(min_score, max_pid, aln_cov)]['genome_names']
+    rates = class_rates[read_length][fam][min_score, max_pid, aln_cov][rate_type]
+    for genome_name, rate in zip(genome_names, rates):
+        true_ags = genome2size[genome_name]
+        est_ags = prop_const/rate if rate > 0 else 'NA'
+        training_ests[read_length][genome_name][fam]['true_ags'] = true_ags
+        training_ests[read_length][genome_name][fam]['est_ags'] = est_ags
+#    write results
 f_out = open(preds_path, 'w')
 header = ['read_length', 'fam', 'genome_name', 'true_ags', 'est_ags']
 f_out.write('\t'.join(header)+'\n')
-for read_length, fam, genome_name in training_ests:
-	true_ags, est_ags = training_ests[(read_length, fam, genome_name)]
-	record = [ str(x) for x in [read_length, fam, genome_name, true_ags, est_ags] ]
-	f_out.write('\t'.join(record)+'\n')
+for read_length in sorted(training_ests.keys()):
+    for genome_name in sorted(training_ests[read_length].keys()):
+        for fam  in sorted(training_ests[read_length][genome_name].keys()):
+            record = [ str(x) for x in [read_length, fam, genome_name, 
+                training_ests[read_length][genome_name][fam]['true_ags'], 
+                training_ests[read_length][genome_name][fam]['est_ags']] ]
+            f_out.write('\t'.join(record)+'\n')
+
+def autovivify(levels=1, final=dict):
+    return (defaultdict(final) if levels < 2 else
+            defaultdict(lambda: autovivify(levels - 1, final)))
