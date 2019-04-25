@@ -50,12 +50,13 @@ def open_file(inpath):
     ext = inpath.split('.')[-1]
     # Python2
     if sys.version_info[0] == 2:
-        if ext == 'gz': return gzip.open(inpath)
+        if ext == 'gz': return gzip.open(inpath, 'rt')
         elif ext == 'bz2': return bz2.BZ2File(inpath)
         else: return open(inpath)
     # Python3
     elif sys.version_info[0] == 3:
-        if ext == 'gz': return io.TextIOWrapper(gzip.open(inpath))
+        #if ext == 'gz': return io.TextIOWrapper(gzip.open(inpath))
+        if ext == 'gz': return gzip.open(inpath, 'rt')
         elif ext == 'bz2': return bz2.BZ2File(inpath)
         else: return open(inpath)
 
@@ -134,7 +135,7 @@ def check_paths(paths):
             sys.exit("Path to file/dir not found: %s" % my_path)
 
 def check_diamond(diamond_path):
-    """ Check that rapsearch2 binary is version 2.15 and is executable """
+    """ Check that diamond binary is executable """
     process = subprocess.Popen(diamond_path + ' version', shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     retcode = process.wait()
     output, error = process.communicate()
@@ -145,7 +146,9 @@ def check_diamond(diamond_path):
 
 def auto_detect_read_length(seqfile, file_type):
     """ Find median read length from first 10K reads in seqfile """
-    valid_lengths = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500]
+    #valid_lengths = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 175, 200, 225, 250, 300, 350, 400, 450, 500]
+    # currently, not all read lengths from the original MicrobeCensus are supported
+    valid_lengths = [50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150]
     read_lengths = []
     try:
         with open_file(seqfile) as f_in:
@@ -156,10 +159,12 @@ def auto_detect_read_length(seqfile, file_type):
     except Exception:
         sys.exit("Could not detect read length of: %s\nThis may be due to an invalid format\nTry specifying it with -l" % seqfile)
     median_read_length = int(median(read_lengths))
+    print ('median_read_length',median_read_length)
     if median_read_length < valid_lengths[0]:
         sys.exit("Median read length is %s. Cannot compute AGS using reads shorter than 50 bp." % median_read_length)
     for index, read_length in enumerate(valid_lengths):
         if read_length > median_read_length:
+            print ('valid_lengths[index-1]', valid_lengths[index-1])
             return valid_lengths[index-1]
     return valid_lengths[-1]
 
@@ -264,6 +269,9 @@ def print_parameters(args):
 def quality_filter(rec, args):
     """ Return true if read fails QC """
     # check percent unknown
+    if (args['mean_quality'] == -5) and (args['min_quality'] == -5):
+        # no filtering
+        return False
     sequence = rec.seq[0:args['read_length']]
     if 100 * sum([1 if b == 'N' else 0 for b in sequence]) / float(len(sequence)) > args['max_unknown']:
         return True
@@ -340,13 +348,13 @@ def process_seqfile(args, paths):
                 i += 1
                 # record sequence if enough high quality bases remain
                 if len(rec.seq) < args['read_length']:
-                    too_short += 1; continue
+                    too_short += 1 ; continue
                 # check if sequence is a duplicate
                 elif args['filter_dups'] and (str(rec.seq) in seqs or str(rec.reverse_complement()) in seqs):
-                    dups += 1; continue
+                    dups += 1 ; continue
                 # check if sequence is low quality
                 elif quality_filter(rec, args):
-                    low_qual += 1; continue
+                    low_qual += 1 ; continue
                 # keep seq
                 else:
                     outfile.write('>'+str(read_id)+'\n'+str(rec.seq[0:args['read_length']])+'\n')
@@ -356,8 +364,8 @@ def process_seqfile(args, paths):
             if read_id == args['nreads']: break
         except Exception as e:
             error = (
-                "\nThe following error was encountered when parsing sequence"
-                "#%s in the input file:\n%s\n" % (i+1, e)
+                "\nThe following error was encountered when parsing sequence "
+                "#%s in the input file %s:\n%s\n" % (i+1, seqfile, e)
             )
             clean_up(paths)
             sys.exit(error)
@@ -377,7 +385,7 @@ def process_seqfile(args, paths):
 
 
 def search_seqs(args, paths):
-    """ Search high quality reads against marker genes using RAPsearch2 """
+    """ Search high quality reads against marker genes using DIAMOND """
     if args['verbose']:
         print ("Searching reads against marker proteins...")
     diamond_args = [paths['diamond'],
@@ -392,7 +400,7 @@ def search_seqs(args, paths):
                     paths['tempfile'] + '.m8',
                     '--evalue',
                     '1.0',
-                    '-k','100','--outfmt','6','qseqid','sseqid','pident','length','mismatch','gapopen','qstart','qend','sstart','send','evalue','score'
+                    '-k','100','--outfmt','6','qseqid','sseqid','pident','length','mismatch','gapopen','qstart','qend','sstart','send','evalue','bitscore'
                     ]
     p = subprocess.Popen(diamond_args, stdout=subprocess.PIPE, stderr = subprocess.PIPE, bufsize=1, universal_newlines=True)
     returncode = p.wait()
@@ -405,7 +413,7 @@ def search_seqs(args, paths):
         if args['verbose']:
             print ("\t%s reads hit marker proteins" % str(distinct_hits))
     else:
-        print('DIAMOND error')
+        print ('DIAMOND error')
         clean_up(paths)
         raise subprocess.CalledProcessError(p.returncode, diamond_args)
 
